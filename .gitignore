@@ -1,0 +1,32 @@
+# Python bytecode and test artefacts
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local environments and package tooling
+.venv/
+venv/
+env/
+.tools/
+pip-wheel-metadata/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Editor and operating-system artefacts
+.vscode/
+.idea/
+*.code-workspace
+.DS_Store
+Thumbs.db
+
+# Generated files
+dist/
+build/
+*.log
