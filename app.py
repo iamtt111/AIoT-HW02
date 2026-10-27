@@ -73,11 +73,22 @@ def curated_prediction(scenario: str) -> dict[str, Any]:
 @app.get("/")
 def home():
     html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
-    return HTMLResponse(html.replace("</body>", '<script type="module" src="/static/blob-upload.js"></script></body>'))
+    enhancements = (ROOT / "static" / "blob-upload.js").read_text(encoding="utf-8")
+    return HTMLResponse(html.replace("</body>", f"<script>{enhancements}</script></body>"), headers={"Cache-Control": "no-store"})
 
 @app.get("/api/curated")
 def curated():
-    df = pd.read_csv(DATA); out = preview(df); out["source"] = "Kaggle Appliances Energy Prediction (loveall/appliances-energy-prediction)"; out["target"] = "Appliances"; out["analysis"] = analyse(df.drop(columns=["date", "rv1", "rv2"]), "Appliances"); return out
+    df = pd.read_csv(DATA)
+    out = preview(df)
+    out["source"] = "Kaggle Appliances Energy Prediction (loveall/appliances-energy-prediction)"
+    out["source_url"] = "https://www.kaggle.com/datasets/loveall/appliances-energy-prediction"
+    out["target"] = "Appliances"
+    out["target_unit"] = "Wh"
+    out["time_range"] = {"start": str(df["date"].min()), "end": str(df["date"].max()), "frequency": "10 minutes"}
+    out["usable_features"] = len(numeric_columns(df.drop(columns=["date", "rv1", "rv2"]), "Appliances"))
+    out["missing_cells"] = int(df.isna().sum().sum())
+    out["analysis"] = analyse(df.drop(columns=["date", "rv1", "rv2"]), "Appliances")
+    return out
 
 @app.get("/api/curated/scenario/{scenario}")
 def scenario(scenario: str):
