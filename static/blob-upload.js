@@ -105,7 +105,7 @@ function addGuides(analysis) {
   document.getElementById('metric-guide')?.remove();
   const guide = `<section id="metric-guide" class="panel guide-panel"><h2>評估指標與圖表判讀</h2>
     <div class="guide-grid"><article><b>MAE：${analysis.metrics.mae} Wh</b><ul><li>平均絕對誤差</li><li>每次預測平均相差約 ${analysis.metrics.mae} Wh</li><li>越低越好，且單位與耗電相同</li></ul></article><article><b>MSE：${analysis.metrics.mse}</b><ul><li>平方誤差的平均值。</li><li>少數很大的失誤會被放大</li><li>適合檢查模型是否常出現嚴重失準</li></ul></article><article><b>RMSE：${analysis.metrics.rmse} Wh</b><ul><li>典型預測誤差尺度</li><li>本次約為 ${analysis.metrics.rmse} Wh</li><li>應與預測區間一併判讀</li></ul></article><article><b>R²：${analysis.metrics.r2}</b><ul><li>解釋約 ${(analysis.metrics.r2 * 100).toFixed(1)}% 的耗電變異</li><li>目前屬可解釋基準模型</li><li>仍有特徵工程或模型改善空間</li></ul></article></div>
-    <article class="chart-guide"><b>Actual vs. Predicted 怎麼看？</b><ul><li>每個點代表一筆未參與訓練的測試資料</li><li>橫軸為實際耗電，縱軸為模型預測耗電</li><li>點越接近斜對角線，預測越準；明顯偏離代表該筆誤差較大</li></ul></article>
+    <article class="chart-guide"><b>Actual vs. Predicted 怎麼看？</b><ul><li>每個藍點代表一筆未參與訓練的測試資料</li><li>橫軸為實際耗電，縱軸為模型預測耗電</li><li>點越接近斜對角線，預測越準；明顯偏離代表該筆誤差較大</li><li>橘色垂直線為部分測試點的 95% prediction interval，顯示單次預測可能的變動範圍，並非平均值的信賴區間</li></ul></article>
     <article class="chart-guide"><b>特徵為何被選取？係數如何比較？</b><ul><li>僅用訓練資料以 <code>SelectKBest(f_regression)</code> 計算 F-score，保留前 20 個數值特徵</li><li>特徵以 <code>(值 − 訓練平均值) / 訓練標準差</code> 標準化</li><li>係數表示特徵增加 1 個標準差時，預測耗電改變多少 Wh；絕對值越大，模型中的影響幅度越高</li></ul></article>
   </section>`;
   document.getElementById('dashboard').insertAdjacentHTML('beforeend', guide);
@@ -156,6 +156,7 @@ dashboardStyle.textContent = `
   .scenario,button { background:#fffdf8; color:var(--text); border-color:#dec6a8; box-shadow:none; }
   .track { background:#f1dfcd; } .fill { background:linear-gradient(90deg,#73a99e,#d96f4c); }
   .chart svg text { fill:#52606d; } .legend { color:#52606d; }
+  .interval-key { display:inline-block; height:15px; width:2px; margin:0 5px -3px 12px; background:var(--accent); opacity:.7; }
   .scenario,button { background:#fffaf3; } .scenario:hover,button:hover { border-color:var(--accent); background:#f8e6d5; }
   #dashboard { display:grid; gap:22px; margin-top:4px; }
   #scenario-result { margin:0 !important; padding:26px !important; } #scenario-result h2 { margin-bottom:18px; } #scenario-result .stats { gap:14px; } #scenario-result .stat { padding:18px; }
