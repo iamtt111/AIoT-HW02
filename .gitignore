@@ -11,6 +11,7 @@ htmlcov/
 venv/
 env/
 .tools/
+.vercel/
 pip-wheel-metadata/
 
 # Local configuration and secrets

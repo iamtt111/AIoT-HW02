@@ -5,8 +5,10 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import httpx
 from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from sklearn.feature_selection import SelectKBest, f_regression
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LinearRegression
@@ -18,7 +20,9 @@ from sklearn.preprocessing import StandardScaler
 ROOT = Path(__file__).parent
 DATA = ROOT / "KAG_energydata_complete.csv"
 app = FastAPI(title="IoT Regression Studio")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 STORE: dict[str, pd.DataFrame] = {}
+MAX_CSV_BYTES = 25 * 1024 * 1024
 
 def numeric_columns(df: pd.DataFrame, target: str | None = None) -> list[str]:
     cols = [c for c in df.select_dtypes(include="number").columns if c != target]
@@ -26,6 +30,14 @@ def numeric_columns(df: pd.DataFrame, target: str | None = None) -> list[str]:
 
 def preview(df: pd.DataFrame) -> dict[str, Any]:
     return {"rows": len(df), "columns": [{"name": c, "dtype": str(df[c].dtype), "missing": int(df[c].isna().sum())} for c in df.columns], "numeric_columns": numeric_columns(df)}
+
+def parse_csv(raw: bytes) -> pd.DataFrame:
+    if len(raw) > MAX_CSV_BYTES:
+        raise HTTPException(400, "CSV exceeds the 25 MB limit.")
+    try:
+        return pd.read_csv(io.BytesIO(raw))
+    except Exception as exc:
+        raise HTTPException(400, "The file could not be parsed as CSV.") from exc
 
 def analyse(df: pd.DataFrame, target: str) -> dict[str, Any]:
     if target not in df or not pd.api.types.is_numeric_dtype(df[target]):
@@ -59,7 +71,9 @@ def curated_prediction(scenario: str) -> dict[str, Any]:
     return {"scenario": label, "prediction": round(estimate, 1), "plus_minus": interval}
 
 @app.get("/")
-def home(): return FileResponse(ROOT / "static" / "index.html")
+def home():
+    html = (ROOT / "static" / "index.html").read_text(encoding="utf-8")
+    return HTMLResponse(html.replace("</body>", '<script type="module" src="/static/blob-upload.js"></script></body>'))
 
 @app.get("/api/curated")
 def curated():
@@ -73,12 +87,34 @@ def scenario(scenario: str):
 async def import_csv(file: UploadFile = File(...)):
     if not file.filename.lower().endswith(".csv"): raise HTTPException(400, "Please upload a CSV file.")
     raw = await file.read()
-    if len(raw) > 25 * 1024 * 1024: raise HTTPException(400, "CSV exceeds the 25 MB limit.")
-    try: df = pd.read_csv(io.BytesIO(raw))
-    except Exception as e: raise HTTPException(400, "The file could not be parsed as CSV.") from e
+    df = parse_csv(raw)
     token = uuid.uuid4().hex; STORE[token] = df; return {"token": token, **preview(df)}
 
 @app.post("/api/analyse/{token}")
 def custom(token: str, payload: dict):
     if token not in STORE: raise HTTPException(404, "Dataset session expired. Import the CSV again.")
     return analyse(STORE[token], payload.get("target", ""))
+
+@app.post("/api/analyse-blob")
+def analyse_blob(payload: dict):
+    url = payload.get("blob_url", "")
+    if not isinstance(url, str) or not url.startswith("https://") or ".blob.vercel-storage.com/" not in url:
+        raise HTTPException(400, "A valid Vercel Blob URL is required.")
+    try:
+        response = httpx.get(url, timeout=30, follow_redirects=False)
+        response.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise HTTPException(400, "The uploaded Blob could not be retrieved.") from exc
+    return analyse(parse_csv(response.content), payload.get("target", ""))
+
+@app.post("/api/preview-blob")
+def preview_blob(payload: dict):
+    url = payload.get("blob_url", "")
+    if not isinstance(url, str) or not url.startswith("https://") or ".blob.vercel-storage.com/" not in url:
+        raise HTTPException(400, "A valid Vercel Blob URL is required.")
+    try:
+        response = httpx.get(url, timeout=30, follow_redirects=False)
+        response.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise HTTPException(400, "The uploaded Blob could not be retrieved.") from exc
+    return preview(parse_csv(response.content))
